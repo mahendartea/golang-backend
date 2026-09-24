@@ -14,10 +14,13 @@ export const gitConfig = {
 
 const getContentUrl = createGetUrl(docsContentRoute);
 
+// Set at build time from next.config (supports GitHub Pages project sites).
+const basePath = (process.env.NEXT_PUBLIC_BASE_PATH ?? '').replace(/\/$/, '');
+
 export function getPageMarkdownUrl(page: { slugs: string[]; locale?: string }) {
   const segments = [...page.slugs, 'content.md'];
 
-  return { segments, url: getContentUrl(segments, page.locale) };
+  return { segments, url: `${basePath}${getContentUrl(segments, page.locale)}` };
 }
 
 const getImageUrl = createGetUrl(docsImageRoute);
@@ -25,5 +28,5 @@ const getImageUrl = createGetUrl(docsImageRoute);
 export function getPageImageUrl(page: { slugs: string[]; locale?: string }) {
   const segments = [...page.slugs, 'image.png'];
 
-  return { segments, url: getImageUrl(segments, page.locale) };
+  return { segments, url: `${basePath}${getImageUrl(segments, page.locale)}` };
 }

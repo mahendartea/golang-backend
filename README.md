@@ -40,6 +40,28 @@ Menambah segmen baru (mis. `cli`): buat `content/docs/cli/` dengan `meta.json`
 
 Urutan navigasi sidebar diatur lewat file `meta.json` di setiap folder.
 
+## Deploy ke GitHub Pages
+
+Situs di-*export* sebagai HTML statis (`output: 'export'`) ke folder `out/`.
+Deployment otomatis lewat GitHub Actions (`.github/workflows/deploy.yml`).
+
+Langkah:
+
+1. Push proyek ke repositori GitHub (branch `main`).
+2. Buka **Settings → Pages → Build and deployment → Source**, pilih **GitHub Actions**.
+3. Setiap push ke `main` otomatis di-build dan di-deploy.
+
+`actions/configure-pages` mengisi `BASE_PATH` (sub-path repo) dan
+`NEXT_PUBLIC_SITE_URL` secara otomatis, sehingga situs berfungsi baik untuk
+*user/org page* (`username.github.io`) maupun *project page*
+(`username.github.io/repo`).
+
+Build & uji statis secara lokal:
+
+```bash
+npm run build       # menghasilkan folder out/
+npx serve out       # atau: python3 -m http.server -d out 4321
+```
 
 ## Explore
 
