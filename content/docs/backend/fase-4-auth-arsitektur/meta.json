@@ -1,0 +1,9 @@
+{
+  "title": "Fase 4 · Otentikasi & Arsitektur",
+  "pages": [
+    "index",
+    "pertemuan-11-otentikasi-jwt",
+    "pertemuan-12-middleware-otorisasi",
+    "pertemuan-13-clean-architecture"
+  ]
+}

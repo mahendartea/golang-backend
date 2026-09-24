@@ -1,0 +1,228 @@
+---
+title: "Pertemuan 2 · Sintaks Dasar & Struktur Data Sederhana"
+description: Variabel, konstanta, zero value, slice, map, dan kontrol alur program di Go.
+---
+
+Setelah environment siap, saatnya menguasai sintaks inti Go: cara mendeklarasikan data, struktur data dinamis, dan mengontrol alur program.
+
+## Tujuan Pembelajaran
+
+- Mendeklarasikan variabel eksplisit dan short declaration.
+- Memahami konstanta dan konsep **zero value**.
+- Menggunakan **slice** dan **map**.
+- Menulis `if-else`, `switch`, dan variasi perulangan `for`.
+
+## 1. Variabel & Konstanta
+
+Go menyediakan dua gaya deklarasi variabel:
+
+```go title="variabel.go"
+package main
+
+import "fmt"
+
+func main() {
+	// deklarasi eksplisit dengan tipe
+	var nama string = "Budi"
+	var umur int = 20
+
+	// short declaration (hanya di dalam fungsi)
+	alamat := "Jakarta"
+	ipk := 3.75
+	aktif := true
+
+	fmt.Println(nama, umur, alamat, ipk, aktif)
+}
+```
+
+Deklarasi banyak sekaligus:
+
+```go title="multi.go"
+var (
+	kota    string = "Bandung"
+	kodePos int    = 40111
+)
+```
+
+Konstanta tidak dapat diubah setelah didefinisikan:
+
+```go title="konstanta.go"
+const Pi = 3.14
+const AppName string = "BelajarGo"
+
+// iota untuk konstanta berurutan
+type Status int
+
+const (
+	Pending Status = iota // 0
+	Sukses                // 1
+	Gagal                 // 2
+)
+```
+
+## 2. Zero Value
+
+Setiap tipe di Go punya nilai default (zero value) ketika dideklarasikan tanpa nilai:
+
+| Tipe | Zero Value |
+| --- | --- |
+| `int`, `float64` | `0` |
+| `string` | `""` |
+| `bool` | `false` |
+| pointer, slice, map, interface | `nil` |
+
+```go title="zero.go"
+var jumlah int
+var label string
+var data []string
+var config map[string]string
+
+fmt.Println(jumlah, label, data == nil, config == nil)
+// 0  true true
+```
+
+<Callout title="Penting" type="warn">
+`nil` slice dan map **belum bisa dipakai** untuk menulis. Inisialisasi dulu dengan `make` atau literal sebelum digunakan.
+</Callout>
+
+## 3. Slice
+
+Slice adalah array dinamis dengan panjang yang bisa berubah.
+
+```go title="slice.go"
+buah := []string{"apel", "mangga"}
+
+buah = append(buah, "jeruk") // menambah elemen
+fmt.Println(len(buah))       // 3 (panjang)
+fmt.Println(cap(buah))       // kapasitas
+
+// range untuk iterasi
+for i, v := range buah {
+	fmt.Printf("%d: %s\n", i, v)
+}
+
+// slicing
+fmt.Println(buah[0:2]) // [apel mangga]
+```
+
+## 4. Map
+
+Map adalah struktur key-value.
+
+```go title="map.go"
+// inisialisasi dengan make
+umur := make(map[string]int)
+umur["Budi"] = 20
+umur["Ani"] = 22
+
+// literal
+skor := map[string]int{
+	"matematika": 90,
+	"fisika":     85,
+}
+
+// membaca + mengecek keberadaan (comma ok)
+nilai, ok := skor["kimia"]
+if !ok {
+	fmt.Println("data tidak ditemukan")
+}
+fmt.Println(nilai)
+
+// menghapus
+delete(umur, "Budi")
+
+for k, v := range skor {
+	fmt.Println(k, v)
+}
+```
+
+## 5. Kontrol Alur
+
+### if-else
+
+```go title="if.go"
+nilai := 78
+
+if nilai >= 85 {
+	fmt.Println("A")
+} else if nilai >= 70 {
+	fmt.Println("B")
+} else {
+	fmt.Println("C")
+}
+
+// if dengan statement inisialisasi
+if err := jalankan(); err != nil {
+	fmt.Println("gagal:", err)
+}
+```
+
+### switch
+
+```go title="switch.go"
+hari := "senin"
+
+switch hari {
+case "senin", "selasa":
+	fmt.Println("awal minggu")
+case "jumat":
+	fmt.Println("akhir minggu kerja")
+default:
+	fmt.Println("hari lain")
+}
+
+// switch tanpa kondisi (pengganti if-else bertingkat)
+switch {
+case nilai >= 85:
+	fmt.Println("A")
+case nilai >= 70:
+	fmt.Println("B")
+}
+```
+
+### Perulangan for
+
+Go hanya memiliki kata kunci `for`, namun fleksibel:
+
+```go title="for.go"
+// for klasik
+for i := 0; i < 5; i++ {
+	fmt.Println(i)
+}
+
+// seperti while
+n := 0
+for n < 3 {
+	n++
+}
+
+// infinite loop
+for {
+	break
+}
+
+// range
+angka := []int{10, 20, 30}
+for i, v := range angka {
+	fmt.Println(i, v)
+}
+```
+
+## Latihan
+
+1. Buat slice berisi 5 nama, lalu cetak hanya nama pada indeks genap.
+2. Buat map nilai mahasiswa, cari rata-rata nilainya.
+3. Gunakan `switch` untuk menentukan nama hari dari angka 1–7.
+4. Cetak bilangan 1–20, tandai kelipatan 3 dengan kata `"fizz"`.
+
+## Checklist
+
+- [ ] Bisa membedakan `var` dan `:=`.
+- [ ] Memahami zero value tiap tipe.
+- [ ] Bisa memakai `append`, `range`, dan `delete`.
+- [ ] Nyaman dengan `for`, `if`, dan `switch`.
+
+## Referensi
+
+- [Go Tour: Basics](https://go.dev/tour/basics/1)
+- [Effective Go](https://go.dev/doc/effective_go)

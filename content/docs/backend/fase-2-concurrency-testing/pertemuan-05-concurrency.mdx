@@ -1,0 +1,176 @@
+---
+title: "Pertemuan 5 · Pemrograman Concurrency"
+description: Goroutine, sync.WaitGroup, channel, dan select untuk eksekusi paralel yang aman.
+---
+
+Concurrency adalah salah satu alasan utama Go dipilih untuk backend. Modelnya sederhana: **goroutine** untuk menjalankan pekerjaan secara paralel, **channel** untuk berkomunikasi, dan `select` untuk menunggu banyak operasi sekaligus.
+
+## Tujuan Pembelajaran
+
+- Menjalankan fungsi secara paralel dengan goroutine.
+- Menyinkronkan goroutine memakai `sync.WaitGroup`.
+- Berkomunikasi antar-goroutine lewat channel (buffered & unbuffered).
+- Menggunakan `select` untuk menunggu beberapa channel.
+
+## 1. Goroutine
+
+Goroutine adalah thread ringan yang dikelola runtime Go, bukan OS. Cukup tambahkan kata kunci `go` di depan pemanggilan fungsi.
+
+```go title="goroutine.go"
+package main
+
+import (
+	"fmt"
+	"time"
+)
+
+func kerja(nama string) {
+	for i := 1; i <= 3; i++ {
+		fmt.Printf("%s: langkah %d\n", nama, i)
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+func main() {
+	go kerja("A")
+	go kerja("B")
+
+	// memberi waktu goroutine selesai (cara kasar)
+	time.Sleep(time.Second)
+	fmt.Println("selesai")
+}
+```
+
+<Callout title="Jangan pakai Sleep untuk sinkronisasi" type="warn">
+`time.Sleep` hanya untuk demo. Di kode nyata gunakan `sync.WaitGroup` atau channel agar program tidak berhenti sebelum pekerjaan benar-benar selesai.
+</Callout>
+
+## 2. sync.WaitGroup
+
+`WaitGroup` menunggu sekumpulan goroutine selesai.
+
+```go title="waitgroup.go"
+import (
+	"fmt"
+	"sync"
+)
+
+func main() {
+	var wg sync.WaitGroup
+
+	for i := 1; i <= 3; i++ {
+		wg.Add(1) // tambah counter
+		go func(id int) {
+			defer wg.Done() // kurangi counter saat selesai
+			fmt.Println("pekerja", id, "selesai")
+		}(i)
+	}
+
+	wg.Wait() // blok sampai counter nol
+	fmt.Println("semua pekerja selesai")
+}
+```
+
+## 3. Channel
+
+Channel adalah pipa komunikasi antar-goroutine. Mengirim dan menerima lewat channel otomatis tersinkronisasi.
+
+### Unbuffered Channel
+
+Pengiriman memblok sampai ada penerima, dan sebaliknya.
+
+```go title="unbuffered.go"
+func main() {
+	pesan := make(chan string)
+
+	go func() {
+		pesan <- "halo dari goroutine"
+	}()
+
+	terima := <-pesan
+	fmt.Println(terima)
+}
+```
+
+### Buffered Channel
+
+Buffer memungkinkan pengiriman tanpa penerima langsung, sampai kapasitas penuh.
+
+```go title="buffered.go"
+func main() {
+	queue := make(chan int, 3)
+
+	queue <- 1
+	queue <- 2
+	queue <- 3
+
+	close(queue) // tandai tidak ada kiriman lagi
+
+	for v := range queue {
+		fmt.Println(v)
+	}
+}
+```
+
+### Pola Worker Pool
+
+```go title="worker.go"
+func main() {
+	jobs := make(chan int, 5)
+	hasil := make(chan int, 5)
+
+	// 3 worker
+	for w := 1; w <= 3; w++ {
+		go func() {
+			for j := range jobs {
+				hasil <- j * j
+			}
+		}()
+	}
+
+	for i := 1; i <= 5; i++ {
+		jobs <- i
+	}
+	close(jobs)
+
+	for i := 1; i <= 5; i++ {
+		fmt.Println(<-hasil)
+	}
+}
+```
+
+## 4. select
+
+`select` menunggu beberapa operasi channel sekaligus — mirip `switch` untuk channel.
+
+```go title="select.go"
+select {
+case msg := <-ch1:
+	fmt.Println("dari ch1:", msg)
+case msg := <-ch2:
+	fmt.Println("dari ch2:", msg)
+case <-time.After(1 * time.Second):
+	fmt.Println("timeout")
+default:
+	fmt.Println("tidak ada yang siap")
+}
+```
+
+## Latihan
+
+1. Jalankan 5 goroutine yang mencetak angka, sinkronkan dengan `WaitGroup`.
+2. Buat buffered channel berkapasitas 5, isi lalu baca seluruhnya.
+3. Buat worker pool yang menghitung faktorial dari 1–10.
+4. Tambahkan timeout pada sebuah channel memakai `select` dan `time.After`.
+
+## Checklist
+
+- [ ] Bisa membuat goroutine dengan `go`.
+- [ ] Menggunakan `wg.Add`, `wg.Done`, dan `wg.Wait` dengan benar.
+- [ ] Memahami perbedaan buffered dan unbuffered channel.
+- [ ] Bisa memakai `select` termasuk `default` dan timeout.
+
+## Referensi
+
+- [Go Concurrency Patterns](https://go.dev/blog/concurrency-patterns)
+- [The Go Memory Model](https://go.dev/ref/mem)

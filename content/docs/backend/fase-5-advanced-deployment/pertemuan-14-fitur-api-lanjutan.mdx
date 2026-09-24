@@ -1,0 +1,199 @@
+---
+title: "Pertemuan 14 · Fitur API Lanjutan (Pagination, Filter & File Upload)"
+description: Pagination limit/offset, searching dengan SQL LIKE, dan upload file ke ImageKit.
+---
+
+API produksi perlu menangani data dalam jumlah besar dan menerima berkas dari pengguna. Pertemuan ini menambahkan **pagination**, **filter**, dan **file upload**.
+
+## Tujuan Pembelajaran
+
+- Mengimplementasikan pagination dengan `limit` dan `offset`.
+- Menghitung metadata total halaman.
+- Membuat fitur searching/filtering dengan `LIKE`.
+- Mengelola file upload multipart dan mengunggahnya ke ImageKit.
+
+## 1. Pagination
+
+```go title="pagination.go"
+type Pagination struct {
+	Page      int   `json:"page"`
+	Limit     int   `json:"limit"`
+	Total     int64 `json:"total"`
+	TotalPage int   `json:"total_page"`
+}
+
+func paginate(c *gin.Context) (int, int) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
+	return page, limit
+}
+```
+
+Query dengan GORM:
+
+```go title="list.go"
+func (h *UserHandler) List(c *gin.Context) {
+	page, limit := paginate(c)
+	offset := (page - 1) * limit
+	search := c.Query("search")
+
+	query := DB.Model(&User{})
+	if search != "" {
+		query = query.Where("name LIKE ?", "%"+search+"%")
+	}
+
+	var total int64
+	query.Count(&total)
+
+	var users []User
+	query.Order("id DESC").Limit(limit).Offset(offset).Find(&users)
+
+	totalPage := int((total + int64(limit) - 1) / int64(limit))
+	c.JSON(200, gin.H{
+		"data": users,
+		"meta": Pagination{
+			Page:      page,
+			Limit:     limit,
+			Total:     total,
+			TotalPage: totalPage,
+		},
+	})
+}
+```
+
+<Callout title="Urutkan sebelum paginate" type="warn">
+Selalu tambahkan `ORDER BY` yang deterministik sebelum `Limit`/`Offset`. Tanpa urutan, hasil antar-halaman bisa tidak konsisten.
+</Callout>
+
+## 2. Filtering
+
+```go title="filter.go"
+func (h *UserHandler) List(c *gin.Context) {
+	query := DB.Model(&User{})
+
+	if role := c.Query("role"); role != "" {
+		query = query.Where("role = ?", role)
+	}
+	if minAge := c.Query("min_age"); minAge != "" {
+		query = query.Where("age >= ?", minAge)
+	}
+	if q := c.Query("q"); q != "" {
+		// LIKE: cari yang mengandung kata
+		query = query.Where("name LIKE ? OR email LIKE ?", "%"+q+"%", "%"+q+"%")
+	}
+
+	// ... paginate & response
+}
+```
+
+| Operator | Contoh |
+| --- | --- |
+| `=` | `WHERE role = 'admin'` |
+| `LIKE` | `WHERE name LIKE '%budi%'` |
+| `>=`, `<=` | `WHERE age >= 18` |
+| `IN` | `WHERE role IN ('admin','user')` |
+
+## 3. File Upload
+
+Gin menyediakan `c.FormFile` untuk menerima file multipart.
+
+```go title="upload.go"
+func Upload(c *gin.Context) {
+	file, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(400, gin.H{"error": "file wajib diisi"})
+		return
+	}
+
+	// batas ukuran (mis. 2 MB)
+	if file.Size > 2<<20 {
+		c.JSON(400, gin.H{"error": "ukuran file maksimal 2MB"})
+		return
+	}
+
+	// simpan lokal
+	if err := c.SaveUploadedFile(file, "./uploads/"+file.Filename); err != nil {
+		c.JSON(500, gin.H{"error": "gagal menyimpan file"})
+		return
+	}
+
+	c.JSON(200, gin.H{"filename": file.Filename})
+}
+```
+
+Endpoint:
+
+```go title="route.go"
+v1.POST("/upload", Upload)
+```
+
+```bash title="Terminal"
+curl -F "file=@gambar.png" http://localhost:8080/api/v1/upload
+```
+
+## 4. Upload ke ImageKit
+
+Untuk production, simpan file di storage pihak ketiga seperti [ImageKit](https://imagekit.io) agar aplikasi tetap stateless.
+
+```bash title="Terminal"
+go get github.com/imagekit-developer/imagekit-go/v2
+```
+
+```go title="imagekit.go"
+import (
+	"github.com/imagekit-developer/imagekit-go/v2"
+	"github.com/imagekit-developer/imagekit-go/v2/option"
+)
+
+func UploadToImageKit(fileHeader *multipart.FileHeader) (string, error) {
+	f, err := fileHeader.Open()
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	ik := imagekit.NewFromParams(imagekit.NewParams{
+		PrivateKey:   os.Getenv("IMAGEKIT_PRIVATE_KEY"),
+		PublicKey:    os.Getenv("IMAGEKIT_PUBLIC_KEY"),
+		UrlEndpoint:  os.Getenv("IMAGEKIT_URL_ENDPOINT"),
+	})
+
+	resp, err := ik.Uploader.Upload(
+		context.Background(),
+		f,
+		imagekit.FileUploadParams{FileName: fileHeader.Filename},
+	)
+	if err != nil {
+		return "", err
+	}
+	return resp.URL, nil
+}
+```
+
+Simpan `IMAGEKIT_PRIVATE_KEY`, `IMAGEKIT_PUBLIC_KEY`, dan `IMAGEKIT_URL_ENDPOINT` di `.env`.
+
+## Latihan
+
+1. Tambahkan pagination pada endpoint `GET /users` beserta metadata total page.
+2. Tambahkan filter `search` dan `role`.
+3. Buat endpoint `POST /upload` yang membatasi ukuran dan tipe file.
+4. Unggah file ke ImageKit dan simpan URL-nya ke database.
+
+## Checklist
+
+- [ ] Pagination mengembalikan `page`, `limit`, `total`, `total_page`.
+- [ ] Query selalu punya `ORDER BY`.
+- [ ] Filter aman dari SQL injection (memakai parameter `?`).
+- [ ] Upload memvalidasi ukuran dan tipe file.
+
+## Referensi
+
+- [Gin: Upload Files](https://gin-gonic.com/docs/examples/upload-file/single-file/)
+- [ImageKit Go SDK](https://github.com/imagekit-developer/imagekit-go)

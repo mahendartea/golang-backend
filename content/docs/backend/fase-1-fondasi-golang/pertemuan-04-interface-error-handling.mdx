@@ -1,0 +1,170 @@
+---
+title: "Pertemuan 4 · Interface & Error Handling Eksplisit"
+description: Duck typing, interface, dan pola error handling idiomatik Go tanpa try-catch.
+---
+
+Interface adalah inti dari fleksibilitas Go, sedangkan error handling eksplisit adalah ciri khas yang membuat kode Go mudah dilacak. Keduanya akan terus dipakai di seluruh kurikulum.
+
+## Tujuan Pembelajaran
+
+- Menerapkan interface dan memahami duck typing.
+- Memahami kontrak implisit (tanpa kata kunci `implements`).
+- Menangani error tanpa `try-catch`.
+- Membuat custom error dan membandingkan tipe error.
+
+## 1. Interface & Duck Typing
+
+Interface mendefinisikan **kumpulan method**. Tipe apa pun yang memiliki method tersebut otomatis memenuhi interface — inilah **duck typing** / kontrak implisit.
+
+```go title="interface.go"
+package main
+
+import "fmt"
+
+type Shape interface {
+	Area() float64
+}
+
+type Persegi struct {
+	Sisi float64
+}
+
+func (p Persegi) Area() float64 {
+	return p.Sisi * p.Sisi
+}
+
+type Lingkaran struct {
+	JariJari float64
+}
+
+func (l Lingkaran) Area() float64 {
+	return 3.14 * l.JariJari * l.JariJari
+}
+
+func cetakLuas(s Shape) {
+	fmt.Println("Luas:", s.Area())
+}
+
+func main() {
+	cetakLuas(Persegi{Sisi: 4})       // 16
+	cetakLuas(Lingkaran{JariJari: 2}) // 12.56
+}
+```
+
+<Callout title="Tidak ada keyword implements" type="info">
+`Persegi` tidak pernah menyatakan "saya mengimplementasikan Shape". Cukup dengan memiliki method `Area() float64`, ia otomatis memenuhi interface. Ini membuat kode lebih longgar dan mudah di-mock saat testing.
+</Callout>
+
+Interface kosong dan type assertion:
+
+```go title="any.go"
+// interface{} (alias any) menerima tipe apa pun
+func deskripsi(v any) string {
+	switch t := v.(type) {
+	case string:
+		return "string: " + t
+	case int:
+		return fmt.Sprintf("int: %d", t)
+	default:
+		return "tipe lain"
+	}
+}
+```
+
+## 2. Error Handling Tanpa try-catch
+
+Di Go, error adalah **nilai biasa**. Fungsi mengembalikannya sebagai nilai terakhir, dan pemanggil wajib memeriksanya secara eksplisit.
+
+```go title="error.go"
+import (
+	"errors"
+	"fmt"
+)
+
+var ErrNotFound = errors.New("data tidak ditemukan")
+
+func cariUser(id int) (string, error) {
+	if id <= 0 {
+		return "", ErrNotFound
+	}
+	return "Budi", nil
+}
+
+func main() {
+	nama, err := cariUser(-1)
+	if err != nil {
+		fmt.Println("gagal:", err)
+		return
+	}
+	fmt.Println("nama:", nama)
+}
+```
+
+## 3. Custom Error
+
+Untuk membawa informasi tambahan, buat tipe error sendiri.
+
+```go title="custom_error.go"
+type ValidationError struct {
+	Field   string
+	Message string
+}
+
+// mengimplementasikan interface error
+func (e *ValidationError) Error() string {
+	return fmt.Sprintf("validasi gagal pada %s: %s", e.Field, e.Message)
+}
+```
+
+## 4. Membandingkan & Membungkus Error
+
+Gunakan `errors.Is` untuk memeriksa error sentinel, dan `errors.As` untuk mengekstrak tipe error.
+
+```go title="wrap.go"
+func ambilData(id int) (string, error) {
+	data, err := cariUser(id)
+	if err != nil {
+		// membungkus error dengan konteks, tetap bisa dilacak
+		return "", fmt.Errorf("ambilData gagal: %w", err)
+	}
+	return data, nil
+}
+
+func main() {
+	_, err := ambilData(0)
+	if errors.Is(err, ErrNotFound) {
+		fmt.Println("user tidak ada")
+	}
+
+	var ve *ValidationError
+	if errors.As(err, &ve) {
+		fmt.Println("field bermasalah:", ve.Field)
+	}
+}
+```
+
+| Fungsi | Kegunaan |
+| --- | --- |
+| `errors.New` | Membuat error sederhana. |
+| `fmt.Errorf` dengan `%w` | Membungkus error sambil menjaga rantai. |
+| `errors.Is` | Mengecek apakah error (atau rantainya) sama dengan sentinel. |
+| `errors.As` | Mengekstrak tipe error tertentu dari rantai. |
+
+## Latihan
+
+1. Buat interface `PaymentMethod` dengan method `Bayar(amount float64) error`.
+2. Implementasikan `KartuKredit` dan `EWallet`.
+3. Buat custom error `ErrSaldoTidakCukup` dan gunakan `errors.Is` untuk mendeteksinya.
+4. Bungkus error dari service dengan `%w` lalu periksa di handler.
+
+## Checklist
+
+- [ ] Memahami bahwa interface dipenuhi secara implisit.
+- [ ] Selalu memeriksa `err` sebelum memakai nilai hasil.
+- [ ] Bisa membuat custom error.
+- [ ] Bisa memakai `errors.Is` dan `errors.As`.
+
+## Referensi
+
+- [Go Blog: Error Handling](https://go.dev/blog/error-handling-and-go)
+- [Working with Errors in Go 1.13](https://go.dev/blog/go1.13-errors)

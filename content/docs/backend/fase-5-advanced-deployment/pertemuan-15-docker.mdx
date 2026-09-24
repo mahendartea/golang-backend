@@ -1,0 +1,161 @@
+---
+title: "Pertemuan 15 · Containerization dengan Docker"
+description: Multi-stage build, kompilasi statis, dan menjalankan kontainer Go secara lokal.
+---
+
+Docker mengemas aplikasi beserta seluruh dependency-nya sehingga dapat berjalan konsisten di mana pun. Karena Go menghasilkan binary tunggal, kita bisa membuat image yang sangat kecil.
+
+## Tujuan Pembelajaran
+
+- Menulis Dockerfile dengan teknik **multi-stage build**.
+- Mengompilasi binary Go secara statis.
+- Menjalankan dan menguji kontainer Go secara lokal.
+
+## 1. Mengapa Multi-Stage Build?
+
+Build Go membutuhkan compiler, tetapi **runtime tidak**. Multi-stage memisahkan tahap build (image besar) dari tahap runtime (image minimal), sehingga ukuran image akhir bisa turun dari ~800 MB menjadi ~10 MB.
+
+## 2. Kompilasi Statis
+
+Binary Go secara default dinamis jika memakai cgo. Nonaktifkan cgo agar binary statis dan bisa berjalan di `scratch`.
+
+```bash title="Terminal"
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o app .
+```
+
+| Variabel | Arti |
+| --- | --- |
+| `CGO_ENABLED=0` | Menonaktifkan cgo → binary statis. |
+| `GOOS=linux` | Target sistem operasi Linux (untuk kontainer). |
+| `GOARCH=amd64` | Target arsitektur CPU. |
+
+## 3. Dockerfile Multi-Stage
+
+```dockerfile title="Dockerfile"
+# ---------- Stage 1: Builder ----------
+FROM golang:1.25-alpine AS builder
+
+WORKDIR /app
+
+# cache dependency
+COPY go.mod go.sum ./
+RUN go mod download
+
+# salin kode dan build
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -ldflags="-s -w" -o /app/server .
+
+# ---------- Stage 2: Runtime ----------
+FROM scratch
+
+# sertifikat CA (dibutuhkan untuk HTTPS keluar, mis. ke ImageKit)
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+
+# timezone
+COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
+
+COPY --from=builder /app/server /server
+
+EXPOSE 8080
+ENTRYPOINT ["/server"]
+```
+
+<Callout title="scratch vs alpine" type="info">
+`scratch` adalah image kosong (nol byte) — paling kecil dan paling aman. Gunakan `alpine` jika butuh shell atau alat debugging di dalam kontainer.
+</Callout>
+
+Penjelasan flag build:
+
+- `-ldflags="-s -w"` menghapus tabel simbol dan informasi debug sehingga binary lebih kecil.
+
+## 4. .dockerignore
+
+Kecualikan file yang tidak perlu agar build cepat dan aman.
+
+```text title=".dockerignore"
+.git
+node_modules
+*.md
+.env
+tmp/
+uploads/
+```
+
+## 5. Build & Jalankan Kontainer
+
+```bash title="Terminal"
+docker build -t golang-backend:latest .
+
+docker run --rm -p 8080:8080 \
+  -e DB_HOST=host.docker.internal \
+  -e DB_PORT=5432 \
+  -e DB_USER=postgres \
+  -e DB_PASSWORD=secret \
+  -e DB_NAME=belajar_go \
+  -e DB_SSLMODE=disable \
+  -e JWT_SECRET=rahasia \
+  golang-backend:latest
+```
+
+<Callout title="host.docker.internal" type="warn">
+Dari dalam kontainer, `localhost` menunjuk ke kontainer itu sendiri, bukan ke mesin host. Gunakan `host.docker.internal` untuk mengakses layanan di host (macOS/Windows).
+</Callout>
+
+## 6. Docker Compose (Opsional)
+
+Untuk menjalankan API dan database bersamaan:
+
+```yaml title="docker-compose.yml"
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: belajar_go
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  api:
+    build: .
+    depends_on:
+      - db
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: secret
+      DB_NAME: belajar_go
+      DB_SSLMODE: disable
+    ports:
+      - "8080:8080"
+
+volumes:
+  pgdata:
+```
+
+```bash title="Terminal"
+docker compose up --build
+```
+
+## Latihan
+
+1. Tulis Dockerfile multi-stage dan build image.
+2. Bandingkan ukuran image `scratch` dengan image berbasis `golang`.
+3. Jalankan kontainer dan uji endpoint `/health`.
+4. Buat `docker-compose.yml` yang menjalankan API + PostgreSQL.
+
+## Checklist
+
+- [ ] Binary dikompilasi dengan `CGO_ENABLED=0`.
+- [ ] Image akhir memakai `scratch` atau `alpine`.
+- [ ] `.dockerignore` mengecualikan `.env` dan file tak perlu.
+- [ ] Aplikasi berjalan di dalam kontainer dan dapat diakses.
+
+## Referensi
+
+- [Docker: Multi-stage builds](https://docs.docker.com/build/building/multi-stage/)
+- [Go: Reducing binary size](https://pkg.go.dev/cmd/link)

@@ -1,0 +1,10 @@
+{
+  "title": "Fase 3 · Web API & Database",
+  "pages": [
+    "index",
+    "pertemuan-07-web-server-net-http",
+    "pertemuan-08-rest-api-gin",
+    "pertemuan-09-database-gorm-postgresql",
+    "pertemuan-10-relasi-orm-lanjutan"
+  ]
+}

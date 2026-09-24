@@ -1,0 +1,192 @@
+---
+title: "Pertemuan 16 · Deployment & Infrastruktur Kubernetes"
+description: Push image, manifes Kubernetes (Deployment & Service), port-forward, dan alternatif cloud.
+---
+
+Pertemuan terakhir membawa aplikasi dari mesin lokal ke infrastruktur nyata. Kita akan mengunggah image, men-deploy ke Kubernetes, dan mengenal alternatif platform cloud yang lebih sederhana.
+
+## Tujuan Pembelajaran
+
+- Mengunggah image Docker ke Docker Hub / Artifact Registry.
+- Menyiapkan manifes Kubernetes: Deployment, Replicas, Pods, dan Service.
+- Melakukan port forwarding dan pengujian di cluster.
+- Men-deploy ke layanan cloud modern (Render/Railway).
+
+## 1. Push Image ke Registry
+
+### Docker Hub
+
+```bash title="Terminal"
+docker login
+docker tag golang-backend:latest username/golang-backend:1.0.0
+docker push username/golang-backend:1.0.0
+```
+
+### Google Artifact Registry
+
+```bash title="Terminal"
+gcloud auth configure-docker asia-southeast2-docker.pkg.dev
+docker tag golang-backend:latest \
+  asia-southeast2-docker.pkg.dev/PROJECT_ID/repo/golang-backend:1.0.0
+docker push \
+  asia-southeast2-docker.pkg.dev/PROJECT_ID/repo/golang-backend:1.0.0
+```
+
+## 2. Konsep Dasar Kubernetes
+
+| Objek | Fungsi |
+| --- | --- |
+| **Pod** | Unit terkecil; menjalankan satu atau beberapa kontainer. |
+| **Deployment** | Mengelola replika Pod, rolling update, dan self-healing. |
+| **ReplicaSet** | Menjaga jumlah Pod sesuai keinginan (dikelola Deployment). |
+| **Service** | Endpoint stabil untuk mengakses sekumpulan Pod. |
+
+## 3. Manifes Deployment
+
+```yaml title="deployment.yaml"
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: golang-backend
+  labels:
+    app: golang-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: golang-backend
+  template:
+    metadata:
+      labels:
+        app: golang-backend
+    spec:
+      containers:
+        - name: api
+          image: username/golang-backend:1.0.0
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: golang-backend-secret
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+```
+
+<Callout title="Jangan simpan kredensial di YAML" type="warn">
+Gunakan `Secret` untuk data sensitif, bukan menulisnya langsung di manifes. Buat dengan `kubectl create secret` atau `envFrom.secretRef`.
+</Callout>
+
+Membuat Secret dari `.env`:
+
+```bash title="Terminal"
+kubectl create secret generic golang-backend-secret \
+  --from-literal=DB_HOST=db.example.com \
+  --from-literal=DB_USER=postgres \
+  --from-literal=DB_PASSWORD=secret \
+  --from-literal=DB_NAME=belajar_go \
+  --from-literal=DB_SSLMODE=require \
+  --from-literal=JWT_SECRET=rahasia
+```
+
+## 4. Manifes Service
+
+```yaml title="service.yaml"
+apiVersion: v1
+kind: Service
+metadata:
+  name: golang-backend
+spec:
+  selector:
+    app: golang-backend
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+  type: ClusterIP
+```
+
+| Tipe Service | Kegunaan |
+| --- | --- |
+| `ClusterIP` | Hanya dapat diakses di dalam cluster (default). |
+| `NodePort` | Mengekspos port di setiap node. |
+| `LoadBalancer` | Menyediakan load balancer eksternal (cloud). |
+
+## 5. Apply & Uji
+
+```bash title="Terminal"
+kubectl apply -f deployment.yaml
+kubectl apply -f service.yaml
+
+kubectl get pods
+kubectl get deployments
+kubectl get services
+
+kubectl logs -f deployment/golang-backend
+kubectl describe pod <nama-pod>
+```
+
+Port forwarding untuk menguji dari lokal:
+
+```bash title="Terminal"
+kubectl port-forward service/golang-backend 8080:80
+curl http://localhost:8080/health
+```
+
+Rolling update saat ada versi baru:
+
+```bash title="Terminal"
+kubectl set image deployment/golang-backend \
+  api=username/golang-backend:1.0.1
+kubectl rollout status deployment/golang-backend
+kubectl rollout undo deployment/golang-backend   # jika bermasalah
+```
+
+## 6. Alternatif Cloud Sederhana
+
+Jika Kubernetes terasa berlebihan, gunakan platform yang menangani infrastruktur otomatis:
+
+- **Render**: hubungkan repositori Git, pilih environment Docker, set environment variable. Deploy otomatis setiap push.
+- **Railway**: deteksi Dockerfile otomatis, menyediakan database PostgreSQL dalam satu klik.
+
+```text
+Build Command : (otomatis dari Dockerfile)
+Start Command : ./server
+Env Vars      : DB_*, JWT_SECRET, IMAGEKIT_*
+```
+
+## Latihan
+
+1. Push image ke Docker Hub dengan tag versi.
+2. Buat `deployment.yaml` dengan 2 replika dan readiness probe.
+3. Buat `service.yaml` dan akses lewat `port-forward`.
+4. Lakukan rolling update ke versi baru lalu rollback.
+5. Deploy alternatif ke Render/Railway dan bandingkan pengalamannya.
+
+## Checklist
+
+- [ ] Image berhasil di-push ke registry.
+- [ ] Deployment berjalan dengan jumlah replika sesuai.
+- [ ] Service dapat diakses lewat port forwarding.
+- [ ] Kredensial disimpan sebagai `Secret`.
+- [ ] Memahami cara rolling update dan rollback.
+
+## Referensi
+
+- [Kubernetes Documentation](https://kubernetes.io/docs/home/)
+- [Render Docs](https://render.com/docs)
+- [Railway Docs](https://docs.railway.com)
+
+---
+
+Selamat! Kamu telah menuntaskan seluruh **16 pertemuan**. Aplikasi Go-mu kini memiliki fondasi bahasa yang kuat, teruji, diamankan, terarsitektur rapi, dan siap berjalan di infrastruktur modern.

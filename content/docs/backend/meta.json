@@ -1,0 +1,13 @@
+{
+  "title": "Backend",
+  "description": "Belajar Golang untuk Backend Development — 16 pertemuan dari fondasi hingga deployment.",
+  "root": true,
+  "pages": [
+    "index",
+    "fase-1-fondasi-golang",
+    "fase-2-concurrency-testing",
+    "fase-3-web-api-database",
+    "fase-4-auth-arsitektur",
+    "fase-5-advanced-deployment"
+  ]
+}

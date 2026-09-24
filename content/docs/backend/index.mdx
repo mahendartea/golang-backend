@@ -1,0 +1,58 @@
+---
+title: Kurikulum Backend
+description: Path belajar 16 pertemuan dari fondasi bahasa Go hingga deployment ke Kubernetes.
+---
+
+Selamat datang di **Segmen Backend**. Kurikulum ini disusun bertahap dalam **16 pertemuan** yang terbagi menjadi **5 fase**: dari sintaks dasar bahasa Go, concurrency, pembangunan REST API, integrasi database, otentikasi, arsitektur bersih, hingga containerization dan deployment ke infrastruktur modern.
+
+<Callout title="Cara menggunakan path ini" type="info">
+Setiap pertemuan berdiri sendiri namun saling bergantung. Selesaikan secara berurutan, kerjakan bagian **Latihan**, lalu verifikasi dengan **checklist** di akhir halaman sebelum lanjut ke pertemuan berikutnya.
+</Callout>
+
+## Prasyarat
+
+- Dasar pemrograman (variabel, fungsi, perulangan) dari bahasa apa pun.
+- Komputer dengan minimal 4 GB RAM dan terminal.
+- Koneksi internet untuk mengunduh Go SDK dan dependency.
+- Akun gratis opsional: [NeonDB](https://neon.tech), [ImageKit](https://imagekit.io), [Docker Hub](https://hub.docker.com).
+
+## Peta Kurikulum
+
+| Fase | Fokus | Pertemuan |
+| --- | --- | --- |
+| Fase 1 | Fondasi Golang & Sintaks Dasar | 1–4 |
+| Fase 2 | Concurrency & Unit Testing | 5–6 |
+| Fase 3 | Web API & Integrasi Database | 7–10 |
+| Fase 4 | Otentikasi, Arsitektur & Otorisasi | 11–13 |
+| Fase 5 | Fitur API Lanjutan, Docker & Deployment | 14–16 |
+
+## Mulai Belajar
+
+<Cards>
+  <Card title="Fase 1 · Fondasi Golang" href="./fase-1-fondasi-golang">
+    Environment setup, sintaks, struct, interface, dan error handling eksplisit.
+  </Card>
+  <Card title="Fase 2 · Concurrency & Testing" href="./fase-2-concurrency-testing">
+    Goroutine, channel, sync, table-driven test, dan mocking.
+  </Card>
+  <Card title="Fase 3 · Web API & Database" href="./fase-3-web-api-database">
+    net/http, Gin, GORM, PostgreSQL, relasi, dan transaksi.
+  </Card>
+  <Card title="Fase 4 · Otentikasi & Arsitektur" href="./fase-4-auth-arsitektur">
+    JWT, bcrypt, middleware RBAC, CORS, dan Clean Architecture.
+  </Card>
+  <Card title="Fase 5 · Lanjutan & Deployment" href="./fase-5-advanced-deployment">
+    Pagination, upload file, Docker multi-stage, dan Kubernetes.
+  </Card>
+</Cards>
+
+## Hasil Akhir
+
+Di akhir kurikulum kamu akan memiliki **satu proyek REST API produksi** yang:
+
+- Memakai struktur **Clean Architecture** dengan layer yang terisolasi.
+- Terhubung ke **PostgreSQL** melalui GORM beserta relasi dan transaksi.
+- Mengamankan endpoint dengan **JWT + RBAC** dan **CORS**.
+- Diuji dengan **unit test** dan **mock**.
+- Terbungkus **Docker image** kecil (multi-stage build).
+- Ter-deploy ke **Kubernetes** (atau Render/Railway sebagai alternatif).

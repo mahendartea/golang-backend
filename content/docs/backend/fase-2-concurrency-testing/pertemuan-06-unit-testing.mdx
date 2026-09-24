@@ -1,0 +1,192 @@
+---
+title: "Pertemuan 6 · Unit Testing & Mocking"
+description: go test, table-driven tests, subtest, mocking via interface, dan code coverage.
+---
+
+Kode backend harus bisa dipercaya. Pertemuan ini membahas cara menulis **unit test** di Go memakai paket `testing` standar, mengorganisasikannya dengan pola table-driven, dan mengisolasi dependency melalui interface (mock).
+
+## Tujuan Pembelajaran
+
+- Menulis test dengan paket `testing` dan menjalankannya dengan `go test`.
+- Menggunakan **table-driven tests** dan subtest `t.Run`.
+- Membuat mock dependency memakai interface.
+- Mengukur cakupan dengan `go test -cover`.
+
+## 1. Test Pertama
+
+File test harus berakhiran `_test.go` dan berada dalam package yang sama (atau `_test`).
+
+```go title="math.go"
+package kalkulator
+
+func Tambah(a, b int) int {
+	return a + b
+}
+```
+
+```go title="math_test.go"
+package kalkulator
+
+import "testing"
+
+func TestTambah(t *testing.T) {
+	hasil := Tambah(2, 3)
+	if hasil != 5 {
+		t.Errorf("Tambah(2,3) = %d; ingin 5", hasil)
+	}
+}
+```
+
+Jalankan:
+
+```bash title="Terminal"
+go test ./...
+go test -v ./...        # verbose
+go test -run TestTambah # jalankan test tertentu
+```
+
+## 2. Table-Driven Tests & Subtest
+
+Pola paling umum di Go: definisikan tabel kasus uji, lalu iterasi.
+
+```go title="math_test.go"
+func TestTambah(t *testing.T) {
+	tests := []struct {
+		nama   string
+		a, b   int
+		harus  int
+	}{
+		{"positif", 2, 3, 5},
+		{"negatif", -1, -1, -2},
+		{"nol", 0, 0, 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.nama, func(t *testing.T) {
+			got := Tambah(tt.a, tt.b)
+			if got != tt.harus {
+				t.Fatalf("got %d; ingin %d", got, tt.harus)
+			}
+		})
+	}
+}
+```
+
+## 3. Mocking via Interface
+
+Karena interface di Go dipenuhi secara implisit, kita bisa membuat implementasi palsu (mock) dengan mudah.
+
+Misalkan sebuah service bergantung pada repository:
+
+```go title="service.go"
+package user
+
+import "errors"
+
+type Repository interface {
+	FindByID(id int) (string, error)
+}
+
+type Service struct {
+	repo Repository
+}
+
+func NewService(repo Repository) *Service {
+	return &Service{repo: repo}
+}
+
+func (s *Service) GetName(id int) (string, error) {
+	nama, err := s.repo.FindByID(id)
+	if err != nil {
+		return "", err
+	}
+	if nama == "" {
+		return "", errors.New("nama kosong")
+	}
+	return nama, nil
+}
+```
+
+Mock repository di test:
+
+```go title="service_test.go"
+package user
+
+import (
+	"errors"
+	"testing"
+)
+
+type mockRepo struct {
+	data  string
+	err   error
+}
+
+func (m mockRepo) FindByID(id int) (string, error) {
+	return m.data, m.err
+}
+
+func TestGetName(t *testing.T) {
+	tests := []struct {
+		nama    string
+		repo    mockRepo
+		ingin   string
+		inginErr bool
+	}{
+		{"sukses", mockRepo{data: "Budi"}, "Budi", false},
+		{"repo error", mockRepo{err: errors.New("db down")}, "", true},
+		{"nama kosong", mockRepo{data: ""}, "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.nama, func(t *testing.T) {
+			svc := NewService(tt.repo)
+			got, err := svc.GetName(1)
+			if (err != nil) != tt.inginErr {
+				t.Fatalf("error = %v; inginErr %v", err, tt.inginErr)
+			}
+			if got != tt.ingin {
+				t.Errorf("got %q; ingin %q", got, tt.ingin)
+			}
+		})
+	}
+}
+```
+
+<Callout title="Kenapa interface?" type="info">
+Dengan mendefinisikan `Repository` sebagai interface di sisi **konsumen** (service), kita bisa menggantinya dengan mock tanpa database sungguhan. Ini membuat test cepat dan deterministik.
+</Callout>
+
+## 4. Code Coverage
+
+```bash title="Terminal"
+go test -cover ./...
+go test -coverprofile=coverage.out ./...
+go tool cover -html=coverage.out   # buka laporan di browser
+```
+
+| Perintah | Kegunaan |
+| --- | --- |
+| `go test -v` | Menampilkan detail setiap test. |
+| `go test -run Nama` | Menjalankan test yang cocok pola. |
+| `go test -cover` | Menampilkan persentase coverage. |
+| `go test -race` | Mendeteksi data race (penting untuk concurrency). |
+
+## Latihan
+
+1. Buat fungsi `Bagi(a, b float64) (float64, error)` dan test lengkap termasuk kasus pembagi nol.
+2. Tulis table-driven test dengan minimal 4 kasus.
+3. Buat interface `Storage` dengan mock, lalu uji sebuah service.
+4. Jalankan `go test -cover` dan tingkatkan coverage hingga minimal 80%.
+
+## Checklist
+
+- [ ] Bisa menulis dan menjalankan `go test`.
+- [ ] Test terorganisasi dengan table-driven dan `t.Run`.
+- [ ] Bisa membuat mock dari interface.
+- [ ] Memahami laporan coverage dan `-race`.
+
+## Referensi
+
+- [Testing Package](https://pkg.go.dev/testing)
+- [Go Blog: Using Subtests](https://go.dev/blog/subtests)

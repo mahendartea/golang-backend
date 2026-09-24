@@ -1,0 +1,183 @@
+---
+title: "Pertemuan 3 · Fungsi, Struct, dan Komposisi"
+description: Multiple return, named return, struct, value vs pointer receiver, dan struct embedding.
+---
+
+Fungsi dan struct adalah bahan dasar pembentuk abstraksi di Go. Di pertemuan ini kita juga membahas **komposisi** — cara Go menggantikan pewarisan (inheritance) dari bahasa OOP.
+
+## Tujuan Pembelajaran
+
+- Menulis fungsi dengan multiple return values dan named return.
+- Membuat data terstruktur dengan `struct`.
+- Membedakan **value receiver** dan **pointer receiver**.
+- Menerapkan **struct embedding** sebagai komposisi.
+
+## 1. Fungsi dengan Multiple Return
+
+Go tidak memakai exception; fungsi sering mengembalikan nilai **dan** error sekaligus.
+
+```go title="fungsi.go"
+package main
+
+import (
+	"errors"
+	"fmt"
+)
+
+// mengembalikan dua nilai
+func bagi(a, b float64) (float64, error) {
+	if b == 0 {
+		return 0, errors.New("pembagi tidak boleh nol")
+	}
+	return a / b, nil
+}
+
+func main() {
+	hasil, err := bagi(10, 2)
+	if err != nil {
+		fmt.Println("error:", err)
+		return
+	}
+	fmt.Println("hasil:", hasil)
+}
+```
+
+### Named Return
+
+```go title="named_return.go"
+func minMax(data []int) (min, max int) {
+	min, max = data[0], data[0]
+	for _, v := range data {
+		if v < min {
+			min = v
+		}
+		if v > max {
+			max = v
+		}
+	}
+	return // bare return memakai nilai min dan max
+}
+```
+
+Variadic function:
+
+```go title="variadic.go"
+func total(angka ...int) int {
+	sum := 0
+	for _, n := range angka {
+		sum += n
+	}
+	return sum
+}
+
+// total(1, 2, 3) -> 6
+```
+
+## 2. Struct
+
+Struct mengelompokkan beberapa field menjadi satu tipe.
+
+```go title="struct.go"
+type User struct {
+	ID    int
+	Nama  string
+	Email string
+	Aktif bool
+}
+
+func main() {
+	// literal dengan nama field
+	u := User{
+		ID:    1,
+		Nama:  "Budi",
+		Email: "budi@example.com",
+		Aktif: true,
+	}
+
+	fmt.Println(u.Nama)
+	fmt.Println(u.Email)
+}
+```
+
+## 3. Method: Value vs Pointer Receiver
+
+Method adalah fungsi yang terikat pada sebuah tipe.
+
+```go title="receiver.go"
+type Counter struct {
+	Total int
+}
+
+// value receiver: menerima SALINAN
+func (c Counter) Nilai() int {
+	return c.Total
+}
+
+// pointer receiver: menerima ALAMAT, bisa mengubah data asli
+func (c *Counter) Tambah(n int) {
+	c.Total += n
+}
+```
+
+<Callout title="Aturan praktis" type="warn">
+Gunakan **pointer receiver** jika method mengubah data atau struct-nya besar. Gunakan **value receiver** jika struct kecil dan tidak diubah. Jangan mencampur keduanya dalam satu tipe.
+</Callout>
+
+Perhatikan konsekuensinya:
+
+```go title="receiver_demo.go"
+c := Counter{Total: 10}
+c.Tambah(5)
+fmt.Println(c.Nilai()) // 15
+```
+
+## 4. Struct Embedding (Komposisi)
+
+Go tidak memiliki `extends`. Sebagai gantinya, kita **menanamkan** (embed) satu struct ke struct lain sehingga field dan method-nya otomatis tersedia.
+
+```go title="embedding.go"
+type Timestamp struct {
+	CreatedAt string
+	UpdatedAt string
+}
+
+type Post struct {
+	ID    int
+	Judul string
+	Timestamp // embedded (tanpa nama field)
+}
+
+func main() {
+	p := Post{
+		ID:    1,
+		Judul: "Belajar Go",
+		Timestamp: Timestamp{
+			CreatedAt: "2026-01-01",
+		},
+	}
+
+	// field yang di-embed bisa diakses langsung
+	fmt.Println(p.CreatedAt)
+}
+```
+
+Bandingkan dengan pewarisan: embedding bersifat **komposisi**, bukan hierarki. Tipe luar tetap bisa menimpa method tipe dalam.
+
+## Latihan
+
+1. Buat fungsi `hitung(angka ...int) (jumlah, rataRata float64)`.
+2. Buat struct `Produk` dengan field `Nama`, `Harga`, dan `Stok`.
+3. Tambahkan method pointer `TambahStok(n int)` dan value method `TotalNilai() float64`.
+4. Buat struct `Base` berisi `ID` dan `CreatedAt`, lalu embed ke `Artikel` dan `Komentar`.
+
+## Checklist
+
+- [ ] Bisa mengembalikan lebih dari satu nilai beserta error.
+- [ ] Memahami kapan memakai pointer receiver.
+- [ ] Bisa mengakses field hasil embedding secara langsung.
+- [ ] Memahami embedding sebagai pengganti inheritance.
+
+## Referensi
+
+- [Effective Go: Methods](https://go.dev/doc/effective_go#methods)
+- [Go by Example: Structs](https://gobyexample.com/structs)

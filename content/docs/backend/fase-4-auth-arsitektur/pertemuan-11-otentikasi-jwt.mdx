@@ -1,0 +1,179 @@
+---
+title: "Pertemuan 11 · Otentikasi & Keamanan JWT"
+description: Stateless authentication dengan JWT, hashing password bcrypt, dan custom claims.
+---
+
+Otentikasi memastikan pengguna adalah siapa yang mereka klaim. Kita akan memakai **JWT (JSON Web Token)** untuk autentikasi stateless dan **bcrypt** untuk mengamankan password.
+
+## Tujuan Pembelajaran
+
+- Memahami konsep stateless authentication dengan JWT.
+- Men-hash password dengan bcrypt.
+- Membuat token dengan custom claims.
+- Memverifikasi token dengan secret key.
+
+## 1. Instalasi
+
+```bash title="Terminal"
+go get github.com/golang-jwt/jwt/v5
+go get golang.org/x/crypto/bcrypt
+```
+
+Tambahkan secret ke `.env`:
+
+```ini title=".env"
+JWT_SECRET=rahasia-super-panjang-dan-acak
+JWT_EXPIRES_HOURS=24
+```
+
+## 2. Struktur JWT
+
+Sebuah JWT terdiri dari tiga bagian yang dipisahkan titik: **header.payload.signature**.
+
+```text
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9
+.
+eyJ1c2VyX2lkIjoxLCJlbWFpbCI6ImJ1ZGlAZXhhbXBsZS5jb20ifQ
+.
+SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
+```
+
+- **Header**: algoritma dan tipe token.
+- **Payload**: claims (data) — hanya di-encode, **bukan dienkripsi**, jadi jangan simpan data sensitif.
+- **Signature**: hasil tanda tangan memakai secret key; memastikan token tidak diubah.
+
+## 3. Hashing Password dengan bcrypt
+
+Jangan pernah menyimpan password dalam bentuk plain text.
+
+```go title="password.go"
+import "golang.org/x/crypto/bcrypt"
+
+func HashPassword(password string) (string, error) {
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	return string(bytes), err
+}
+
+func CheckPassword(hash, password string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	return err == nil
+}
+```
+
+<Callout title="Kenapa bcrypt?" type="info">
+bcrypt otomatis menambahkan **salt** dan lambat secara sengaja, sehingga serangan brute-force menjadi jauh lebih mahal dibanding hash cepat seperti MD5/SHA.
+</Callout>
+
+## 4. Custom Claims
+
+Claims kustom memungkinkan kita menyimpan User ID, Email, dan waktu kedaluwarsa.
+
+```go title="claims.go"
+import "github.com/golang-jwt/jwt/v5"
+
+type JWTClaims struct {
+	UserID uint   `json:"user_id"`
+	Email  string `json:"email"`
+	Role   string `json:"role"`
+	jwt.RegisteredClaims
+}
+```
+
+## 5. Generate Token
+
+```go title="generate.go"
+import (
+	"os"
+	"strconv"
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+)
+
+func GenerateToken(userID uint, email, role string) (string, error) {
+	hours, _ := strconv.Atoi(os.Getenv("JWT_EXPIRES_HOURS"))
+	claims := JWTClaims{
+		UserID: userID,
+		Email:  email,
+		Role:   role,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Duration(hours) * time.Hour)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(os.Getenv("JWT_SECRET")))
+}
+```
+
+## 6. Verifikasi Token
+
+```go title="verify.go"
+func ParseToken(tokenString string) (*JWTClaims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{},
+		func(t *jwt.Token) (any, error) {
+			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, jwt.ErrSignatureInvalid
+			}
+			return []byte(os.Getenv("JWT_SECRET")), nil
+		})
+	if err != nil {
+		return nil, err
+	}
+
+	claims, ok := token.Claims.(*JWTClaims)
+	if !ok || !token.Valid {
+		return nil, jwt.ErrTokenInvalidClaims
+	}
+	return claims, nil
+}
+```
+
+## 7. Alur Login
+
+```go title="login.go"
+func Login(c *gin.Context) {
+	var req struct {
+		Email    string `json:"email" binding:"required,email"`
+		Password string `json:"password" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	var user User
+	if err := DB.Where("email = ?", req.Email).First(&user).Error; err != nil {
+		c.JSON(401, gin.H{"error": "email atau password salah"})
+		return
+	}
+
+	if !CheckPassword(user.Password, req.Password) {
+		c.JSON(401, gin.H{"error": "email atau password salah"})
+		return
+	}
+
+	token, _ := GenerateToken(user.ID, user.Email, user.Role)
+	c.JSON(200, gin.H{"token": token})
+}
+```
+
+## Latihan
+
+1. Tambahkan kolom `Password` dan `Role` pada model `User`.
+2. Buat endpoint `POST /register` yang men-hash password sebelum disimpan.
+3. Buat endpoint `POST /login` yang mengembalikan JWT.
+4. Tambahkan fungsi `ParseToken` dan uji dengan token yang kedaluwarsa.
+
+## Checklist
+
+- [ ] Password selalu di-hash dengan bcrypt.
+- [ ] JWT_SECRET disimpan di `.env`.
+- [ ] Token berisi custom claims (User ID, Email, Role).
+- [ ] Verifikasi token menolak signature dan token kedaluwarsa.
+
+## Referensi
+
+- [jwt-go v5](https://github.com/golang-jwt/jwt)
+- [bcrypt](https://pkg.go.dev/golang.org/x/crypto/bcrypt)

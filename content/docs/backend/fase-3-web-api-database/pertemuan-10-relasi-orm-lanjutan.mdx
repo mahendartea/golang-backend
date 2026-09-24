@@ -1,0 +1,177 @@
+---
+title: "Pertemuan 10 · Manajemen Relasi Database & Fitur ORM Lanjutan"
+description: Has One, Has Many, Belongs To, Many to Many, eager loading, dan transaksi.
+---
+
+Data dunia nyata saling berhubungan. Pertemuan ini membahas cara memodelkan relasi di GORM, memuat relasi secara efisien, dan menjaga konsistensi data dengan transaksi.
+
+## Tujuan Pembelajaran
+
+- Memodelkan relasi **Has One, Has Many, Belongs To, Many to Many**.
+- Mengoptimalkan query relasi dengan **eager loading** (`Preload`/`Joins`).
+- Mengelola **transaksi** database dengan rollback.
+
+## 1. Belongs To
+
+Relasi di mana tabel ini memiliki foreign key ke tabel lain.
+
+```go title="belongs_to.go"
+type Company struct {
+	ID   uint
+	Name string
+}
+
+type User struct {
+	ID        uint
+	Name      string
+	CompanyID uint    // foreign key
+	Company   Company // relasi
+}
+```
+
+## 2. Has One
+
+Satu user memiliki satu profil.
+
+```go title="has_one.go"
+type Profile struct {
+	ID     uint
+	UserID uint
+	Bio    string
+}
+
+type User struct {
+	ID      uint
+	Name    string
+	Profile Profile // has one
+}
+```
+
+## 3. Has Many
+
+Satu user memiliki banyak artikel.
+
+```go title="has_many.go"
+type Article struct {
+	ID     uint
+	Title  string
+	UserID uint
+}
+
+type User struct {
+	ID       uint
+	Name     string
+	Articles []Article // has many
+}
+```
+
+## 4. Many to Many
+
+Artikel punya banyak tag, tag dipakai banyak artikel. GORM membuat tabel pivot otomatis.
+
+```go title="many_to_many.go"
+type Tag struct {
+	ID   uint
+	Name string
+}
+
+type Article struct {
+	ID   uint
+	Title string
+	Tags  []Tag `gorm:"many2many:article_tags;"`
+}
+```
+
+<Callout title="Tabel pivot" type="info">
+Tag `many2many:article_tags` membuat tabel `article_tags` berisi `article_id` dan `tag_id`. Kamu tidak perlu mendefinisikan tabel ini secara manual.
+</Callout>
+
+## 5. Eager Loading
+
+Secara default GORM **tidak** memuat relasi. Gunakan `Preload` agar tidak terjadi masalah N+1 query.
+
+```go title="preload.go"
+var users []User
+
+// memuat Articles untuk setiap user
+DB.Preload("Articles").Find(&users)
+
+// preload bertingkat
+DB.Preload("Articles.Tags").Find(&users)
+
+// preload dengan kondisi
+DB.Preload("Articles", "title LIKE ?", "%go%").Find(&users)
+```
+
+`Joins` lebih efisien ketika kamu hanya butuh memfilter berdasarkan relasi:
+
+```go title="joins.go"
+var users []User
+
+DB.Joins("JOIN articles ON articles.user_id = users.id").
+	Where("articles.title LIKE ?", "%go%").
+	Find(&users)
+```
+
+| Pendekatan | Kapan dipakai |
+| --- | --- |
+| `Preload` | Butuh seluruh data relasi (query terpisah). |
+| `Joins` | Hanya untuk memfilter berdasarkan relasi. |
+
+## 6. Transaksi
+
+Transaksi memastikan serangkaian operasi berhasil semua atau gagal semua.
+
+```go title="transaction.go"
+err := DB.Transaction(func(tx *gorm.DB) error {
+	user := User{Name: "Budi", Email: "budi@example.com"}
+	if err := tx.Create(&user).Error; err != nil {
+		return err // otomatis rollback
+	}
+
+	profile := Profile{UserID: user.ID, Bio: "Halo"}
+	if err := tx.Create(&profile).Error; err != nil {
+		return err // rollback, user tadi dibatalkan
+	}
+
+	return nil // commit
+})
+
+if err != nil {
+	fmt.Println("transaksi gagal:", err)
+}
+```
+
+Transaksi manual:
+
+```go title="manual_tx.go"
+tx := DB.Begin()
+if err := tx.Create(&user).Error; err != nil {
+	tx.Rollback()
+	return err
+}
+if err := tx.Create(&profile).Error; err != nil {
+	tx.Rollback()
+	return err
+}
+return tx.Commit().Error
+```
+
+## Latihan
+
+1. Modelkan `User` (Has Many `Orders`) dan `Order` (Has Many `Items`).
+2. Tambahkan relasi Many to Many antara `Product` dan `Category`.
+3. Gunakan `Preload` untuk menampilkan user beserta seluruh order dan item-nya.
+4. Buat transaksi yang membuat order sekaligus mengurangi stok produk; rollback jika stok tidak cukup.
+
+## Checklist
+
+- [ ] Bisa memodelkan keempat jenis relasi.
+- [ ] Memahami perbedaan `Preload` dan `Joins`.
+- [ ] Bisa membuat transaksi dengan rollback otomatis.
+- [ ] Menghindari masalah N+1 query.
+
+## Referensi
+
+- [GORM: Associations](https://gorm.io/docs/has_many.html)
+- [GORM: Transactions](https://gorm.io/docs/transactions.html)

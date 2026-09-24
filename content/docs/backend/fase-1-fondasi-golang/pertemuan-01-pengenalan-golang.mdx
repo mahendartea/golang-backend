@@ -1,0 +1,133 @@
+---
+title: "Pertemuan 1 · Pengenalan Golang & Environment Setup"
+description: Memahami karakteristik Go, menginstal SDK, menyiapkan IDE, dan menjalankan program pertama dengan Go Modules.
+---
+
+Pertemuan pertama ini membangun fondasi lingkungan kerja. Kita akan memahami **mengapa** Go populer untuk backend, lalu menyiapkan semua perkakas yang dibutuhkan hingga menjalankan program pertama.
+
+## Tujuan Pembelajaran
+
+- Menjelaskan karakteristik Golang (kompilasi native, binary tunggal, tanpa VM).
+- Menginstal Go SDK dan memverifikasinya.
+- Menyiapkan IDE (VS Code atau GoLand).
+- Menginisialisasi proyek dengan **Go Modules**.
+- Menjalankan program pertama dengan `go run` dan `go build`.
+
+## 1. Karakteristik Golang
+
+Go (Golang) dirancang di Google untuk menyelesaikan masalah rekayasa perangkat lunak skala besar. Karakteristik utamanya:
+
+| Karakteristik | Penjelasan |
+| --- | --- |
+| **Kompilasi native** | Kode dikompilasi langsung menjadi kode mesin, bukan bytecode. |
+| **Binary tunggal** | Hasil build berupa satu file executable tanpa dependency eksternal. |
+| **Tanpa VM** | Tidak ada virtual machine; program langsung berjalan di OS. |
+| **Statically typed** | Tipe diperiksa saat kompilasi sehingga banyak bug terdeteksi lebih awal. |
+| **Garbage collected** | Manajemen memori otomatis, aman namun tetap cepat. |
+| **Concurrency bawaan** | Goroutine dan channel tersedia di bahasa, bukan library. |
+
+<Callout title="Konsekuensi untuk backend" type="info">
+Karena menghasilkan binary tunggal, Go sangat cocok untuk kontainer: image Docker bisa sangat kecil dan startup-nya instan.
+</Callout>
+
+## 2. Instalasi Go SDK
+
+Unduh installer dari [go.dev/dl](https://go.dev/dl/) sesuai sistem operasi, atau gunakan package manager:
+
+```bash title="Terminal"
+# macOS (Homebrew)
+brew install go
+
+# Linux (Debian/Ubuntu)
+sudo apt install golang-go
+```
+
+Verifikasi instalasi:
+
+```bash title="Terminal"
+go version
+# contoh keluaran: go version go1.25.5 darwin/arm64
+
+go env GOPATH
+```
+
+## 3. Setup IDE
+
+- **VS Code**: pasang ekstensi **Go** (`golang.go`). Ekstensi ini menyediakan autocomplete, format otomatis, dan debugging.
+- **GoLand**: IDE berbayar dari JetBrains dengan dukungan Go penuh.
+
+Aktifkan format otomatis saat menyimpan agar kode selalu mengikuti `gofmt`:
+
+```json title=".vscode/settings.json"
+{
+  "editor.formatOnSave": true,
+  "[go]": {
+    "editor.defaultFormatter": "golang.go"
+  }
+}
+```
+
+## 4. Inisialisasi Proyek dengan Go Modules
+
+**Go Modules** adalah sistem manajemen dependency resmi. Buat folder proyek lalu inisialisasi module:
+
+```bash title="Terminal"
+mkdir hello-go && cd hello-go
+go mod init github.com/username/hello-go
+```
+
+Perintah ini menghasilkan file `go.mod`:
+
+```go title="go.mod"
+module github.com/username/hello-go
+
+go 1.25
+```
+
+## 5. Program Pertama
+
+Buat file `main.go`:
+
+```go title="main.go"
+package main
+
+import "fmt"
+
+func main() {
+	fmt.Println("Halo, Golang!")
+}
+```
+
+Penjelasan singkat:
+
+- `package main` menandai bahwa file ini adalah program yang dapat dieksekusi.
+- `func main()` adalah titik masuk (entry point) program.
+- `fmt.Println` mencetak teks ke stdout.
+
+Jalankan dan build:
+
+```bash title="Terminal"
+go run main.go      # kompilasi + jalankan langsung
+go build -o hello   # hasilkan binary bernama hello
+./hello             # jalankan binary
+go fmt ./...        # rapikan format seluruh kode
+```
+
+## Latihan
+
+1. Buat module baru bernama `github.com/username/latihan-1`.
+2. Cetak nama, jurusan, dan tahun masuk menggunakan `fmt.Println`.
+3. Build menjadi binary dan jalankan tanpa `go run`.
+4. Jalankan `go env` lalu catat nilai `GOPATH` dan `GOROOT`.
+
+## Checklist
+
+- [ ] `go version` menampilkan versi Go.
+- [ ] Proyek memiliki `go.mod`.
+- [ ] Program pertama berhasil dijalankan dan di-build.
+- [ ] Memahami perbedaan `go run` dan `go build`.
+
+## Referensi
+
+- [Dokumentasi resmi Go](https://go.dev/doc/)
+- [Go Modules Reference](https://go.dev/ref/mod)

@@ -1,0 +1,178 @@
+---
+title: "Pertemuan 9 · Integrasi Database dengan GORM & PostgreSQL"
+description: Koneksi PostgreSQL/NeonDB, environment variable, AutoMigrate, dan operasi CRUD dengan GORM.
+---
+
+API tanpa database hanyalah data sementara. Di pertemuan ini kita menghubungkan aplikasi ke **PostgreSQL** menggunakan ORM **GORM** dan menyimpan data secara permanen.
+
+## Tujuan Pembelajaran
+
+- Menghubungkan aplikasi ke PostgreSQL/NeonDB.
+- Mengelola konfigurasi sensitif dengan environment variable.
+- Mengonfigurasi GORM dan `AutoMigrate`.
+- Melakukan operasi CRUD dengan GORM.
+
+## 1. Instalasi
+
+```bash title="Terminal"
+go get gorm.io/gorm
+go get gorm.io/driver/postgres
+go get github.com/joho/godotenv
+```
+
+## 2. Environment Variable
+
+Jangan pernah menulis kredensial langsung di kode. Simpan di `.env`:
+
+```ini title=".env"
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=secret
+DB_NAME=belajar_go
+DB_SSLMODE=disable
+```
+
+<Callout title="Untuk NeonDB" type="info">
+NeonDB menyediakan satu connection string. Untuk production gunakan `DB_SSLMODE=require`. Jangan commit file `.env` — masukkan ke `.gitignore`.
+</Callout>
+
+Muat `.env` saat startup:
+
+```go title="config.go"
+import (
+	"os"
+
+	"github.com/joho/godotenv"
+)
+
+func LoadEnv() {
+	_ = godotenv.Load() // abaikan error jika file tidak ada (mis. di production)
+}
+
+func dsn() string {
+	return "host=" + os.Getenv("DB_HOST") +
+		" port=" + os.Getenv("DB_PORT") +
+		" user=" + os.Getenv("DB_USER") +
+		" password=" + os.Getenv("DB_PASSWORD") +
+		" dbname=" + os.Getenv("DB_NAME") +
+		" sslmode=" + os.Getenv("DB_SSLMODE")
+}
+```
+
+## 3. Membuka Koneksi GORM
+
+```go title="database.go"
+import (
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+)
+
+var DB *gorm.DB
+
+func ConnectDB() error {
+	db, err := gorm.Open(postgres.Open(dsn()), &gorm.Config{})
+	if err != nil {
+		return err
+	}
+	DB = db
+	return nil
+}
+```
+
+## 4. Model & AutoMigrate
+
+Model adalah struct Go yang dipetakan ke tabel.
+
+```go title="model.go"
+import "time"
+
+type User struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	Name      string    `gorm:"size:100;not null" json:"name"`
+	Email     string    `gorm:"uniqueIndex;not null" json:"email"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+```
+
+`AutoMigrate` menyesuaikan skema tabel dengan model:
+
+```go title="migrate.go"
+func Migrate() error {
+	return DB.AutoMigrate(&User{})
+}
+```
+
+<Callout title="Konvensi GORM" type="warn">
+GORM otomatis mengubah `User` menjadi tabel `users`, `CreatedAt` menjadi kolom `created_at`, dan memakai `ID` sebagai primary key. Gunakan tag `gorm:` untuk mengubah perilaku ini.
+</Callout>
+
+## 5. Operasi CRUD
+
+### Create
+
+```go title="crud.go"
+user := User{Name: "Budi", Email: "budi@example.com"}
+result := DB.Create(&user)
+// user.ID sekarang terisi otomatis
+```
+
+### Read
+
+```go title="read.go"
+// ambil satu berdasarkan primary key
+var u User
+DB.First(&u, 1) // SELECT ... WHERE id = 1
+
+// ambil dengan kondisi
+var v User
+DB.Where("email = ?", "budi@example.com").First(&v)
+
+// ambil banyak
+var users []User
+DB.Where("name LIKE ?", "%bu%").Find(&users)
+```
+
+### Update
+
+```go title="update.go"
+// update field tertentu
+DB.Model(&user).Update("name", "Budi Santoso")
+
+// update beberapa field
+DB.Model(&user).Updates(User{Name: "Budi S", Email: "baru@example.com"})
+
+// Save menulis seluruh field
+user.Name = "Budi Baru"
+DB.Save(&user)
+```
+
+### Delete
+
+```go title="delete.go"
+DB.Delete(&user, user.ID)
+```
+
+<Callout title="Soft delete" type="info">
+Jika model memiliki field `DeletedAt gorm.DeletedAt`, GORM melakukan **soft delete** — data tidak benar-benar dihapus, melainkan diberi timestamp.
+</Callout>
+
+## Latihan
+
+1. Buat koneksi PostgreSQL dari `.env` dan pastikan berhasil.
+2. Definisikan model `Product` dengan field `ID`, `Name`, `Price`, `Stock`.
+3. Jalankan `AutoMigrate` dan verifikasi tabel terbentuk.
+4. Implementasikan CRUD lengkap pada handler Gin yang memanggil GORM.
+
+## Checklist
+
+- [ ] Aplikasi terhubung ke PostgreSQL via GORM.
+- [ ] Kredensial disimpan di `.env` dan tidak di-commit.
+- [ ] `AutoMigrate` berhasil membuat tabel.
+- [ ] Bisa melakukan Create, Read, Update, Delete.
+
+## Referensi
+
+- [GORM Documentation](https://gorm.io/docs/)
+- [NeonDB](https://neon.tech/docs)

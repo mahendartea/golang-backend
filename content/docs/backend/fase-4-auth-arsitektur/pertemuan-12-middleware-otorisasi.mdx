@@ -1,0 +1,164 @@
+---
+title: "Pertemuan 12 · Middleware Otorisasi & Proteksi Endpoint"
+description: Middleware JWT di Gin, c.Set/c.Get, RBAC, dan penanganan CORS.
+---
+
+Setelah token dibuat, kita perlu **memproteksi endpoint**: hanya request dengan token valid yang boleh lewat, dan hanya peran tertentu yang boleh mengakses resource tertentu.
+
+## Tujuan Pembelajaran
+
+- Membuat middleware JWT di Gin.
+- Mengekstraksi token dari header `Authorization: Bearer`.
+- Menyimpan claims ke konteks request (`c.Set`/`c.Get`).
+- Menerapkan Role-Based Access Control (RBAC).
+- Menangani Cross-Origin Resource Sharing (CORS).
+
+## 1. Middleware Autentikasi
+
+```go title="middleware/auth.go"
+package middleware
+
+import (
+	"net/http"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+)
+
+func Auth() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		header := c.GetHeader("Authorization")
+		if header == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "token tidak ada"})
+			return
+		}
+
+		parts := strings.SplitN(header, " ", 2)
+		if len(parts) != 2 || parts[0] != "Bearer" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "format token salah"})
+			return
+		}
+
+		claims, err := ParseToken(parts[1])
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "token tidak valid"})
+			return
+		}
+
+		// simpan claims ke konteks
+		c.Set("user_id", claims.UserID)
+		c.Set("email", claims.Email)
+		c.Set("role", claims.Role)
+
+		c.Next()
+	}
+}
+```
+
+<Callout title="c.AbortWithStatusJSON" type="warn">
+Gunakan `Abort` agar handler berikutnya **tidak** dijalankan. Tanpa itu, request yang gagal autentikasi tetap akan masuk ke handler.
+</Callout>
+
+## 2. Mengambil Data dari Konteks
+
+```go title="handler.go"
+func Profile(c *gin.Context) {
+	userID := c.MustGet("user_id").(uint)
+	email := c.GetString("email")
+	role := c.GetString("role")
+
+	c.JSON(200, gin.H{
+		"user_id": userID,
+		"email":   email,
+		"role":    role,
+	})
+}
+```
+
+## 3. RBAC (Role-Based Access Control)
+
+Middleware otorisasi memeriksa peran pengguna.
+
+```go title="middleware/rbac.go"
+func RequireRole(roles ...string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		role := c.GetString("role")
+
+		for _, r := range roles {
+			if role == r {
+				c.Next()
+				return
+			}
+		}
+
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "akses ditolak"})
+	}
+}
+```
+
+## 4. Memasang Middleware pada Route
+
+```go title="routes.go"
+r := gin.Default()
+
+// publik
+r.POST("/login", Login)
+r.POST("/register", Register)
+
+// privat
+auth := r.Group("/api/v1")
+auth.Use(middleware.Auth())
+{
+	auth.GET("/profile", Profile)
+
+	// hanya admin
+	admin := auth.Group("/admin")
+	admin.Use(middleware.RequireRole("admin"))
+	{
+		admin.GET("/users", ListUsers)
+	}
+}
+```
+
+## 5. CORS
+
+Browser memblokir request lintas origin secara default. Tangani dengan middleware CORS.
+
+```bash title="Terminal"
+go get github.com/gin-contrib/cors
+```
+
+```go title="cors.go"
+import "github.com/gin-contrib/cors"
+
+r.Use(cors.New(cors.Config{
+	AllowOrigins:     []string{"http://localhost:3000", "https://app.example.com"},
+	AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+	AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+	AllowCredentials: true,
+	MaxAge:           12 * time.Hour,
+}))
+```
+
+<Callout title="Jangan gunakan AllowAllOrigins di production" type="warn">
+`AllowAllOrigins: true` praktis untuk development, tetapi berbahaya di production karena mengizinkan situs mana pun memanggil API dengan kredensial.
+</Callout>
+
+## Latihan
+
+1. Buat middleware `Auth` yang memvalidasi Bearer token.
+2. Simpan `user_id`, `email`, dan `role` ke konteks.
+3. Buat endpoint `/admin/users` yang hanya bisa diakses peran `admin`.
+4. Konfigurasikan CORS untuk origin frontend kamu.
+
+## Checklist
+
+- [ ] Endpoint privat menolak request tanpa token.
+- [ ] Claims dapat diakses dari handler via `c.Get`.
+- [ ] RBAC membedakan akses `admin` dan `user`.
+- [ ] CORS dikonfigurasi dengan origin spesifik.
+
+## Referensi
+
+- [Gin: Custom Middleware](https://gin-gonic.com/docs/examples/custom-middleware/)
+- [gin-contrib/cors](https://github.com/gin-contrib/cors)

@@ -1,0 +1,10 @@
+{
+  "title": "Fase 1 · Fondasi Golang",
+  "pages": [
+    "index",
+    "pertemuan-01-pengenalan-golang",
+    "pertemuan-02-sintaks-dasar",
+    "pertemuan-03-fungsi-struct-komposisi",
+    "pertemuan-04-interface-error-handling"
+  ]
+}
